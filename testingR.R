@@ -300,3 +300,16 @@ psw <- "password"
 gconnect(usr, psw)
 trends <- gtrends(c("Nanotechnology", "Renewable energy", "Artificial intelligence", "Big data", "3D printing"))
 plot(trends)
+
+
+#########################################################################################
+###############                         7                           #####################
+###############             Tech Themes for ggplot2                 #####################
+#########################################################################################
+
+# https://github.com/ricardo-bion/ggtech
+
+library(ggplot2)
+library(ggtech)
+d <- qplot(carat, data = diamonds[diamonds$color %in%LETTERS[4:7], ], geom = "histogram", bins=30, fill = color)
+d + theme_tech(theme = "facebook")+ ggtitle("Facebook ggplot2 theme") + scale_fill_tech(theme = "facebook")
