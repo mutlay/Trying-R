@@ -313,3 +313,104 @@ library(ggplot2)
 library(ggtech)
 d <- qplot(carat, data = diamonds[diamonds$color %in%LETTERS[4:7], ], geom = "histogram", bins=30, fill = color)
 d + theme_tech(theme = "facebook")+ ggtitle("Facebook ggplot2 theme") + scale_fill_tech(theme = "facebook")
+
+#########################################################################################
+###############                         8                           #####################
+###############             Basic ggplot2 examples                  #####################
+#########################################################################################
+
+# http://theanalyticalminds.blogspot.com.tr/2015/03/part-3a-plotting-with-ggplot2.html
+# DATA PREPARATION
+weather <- read.csv("weather_2014.csv",sep=";",stringsAsFactors=FALSE)
+weather$season <- factor(weather$season, levels = c("Spring","Summer","Autumn","Winter"))
+weather$day <- as.factor(weather$day)
+weather$month <- as.factor(weather$month)
+weather$dir.wind <- as.factor(weather$dir.wind)
+rel <- round(prop.table(table(weather$dir.wind))*100,1)
+sort(rel,decreasing = TRUE)
+# Transforming wind direction variable: from 16 to 8 principal winds 
+  
+# Create a copy from the original variable...
+weather$dir.wind.8 <- weather$dir.wind 
+
+# ...and then simply recode some of the variables
+weather$dir.wind.8 <- ifelse(weather$dir.wind %in%  c("NNE","ENE"),
+                                 "NE",as.character(weather$dir.wind.8)) 
+
+weather$dir.wind.8 <- ifelse(weather$dir.wind %in% c("NNW","WNW"),
+                               "NW",as.character(weather$dir.wind.8)) 
+
+weather$dir.wind.8 <- ifelse(weather$dir.wind %in% c("WSW","SSW"),
+                               "SW",as.character(weather$dir.wind.8)) 
+
+weather$dir.wind.8 <- ifelse(weather$dir.wind %in% c("ESE","SSE"),
+                               "SE",as.character(weather$dir.wind.8)) 
+
+# create factors, ordered by "levels" 
+weather$dir.wind.8 <- factor(weather$dir.wind.8,
+                                 levels = c("N","NE","E","SE","S","SW","W","NW"))
+round(prop.table(table(weather$dir.wind.8,weather$season),margin = 2)*100,1)
+first.day <- "2014-01-01"
+first.day <- as.Date(first.day)
+weather$date  <- first.day + weather$day.count - 1
+# Store date and time as POSIXlt class
+l.temp.time.date <- as.POSIXlt(paste(weather$date,weather$l.temp.time))
+# Round to the nearest hour
+l.temp.time.date <- round(l.temp.time.date,"hours")
+weather$l.temp.hour <- l.temp.time.date [["hour"]]
+# Lastly, the integer is converted to factor
+weather$l.temp.hour <- as.factor(weather$l.temp.hour)
+
+library(ggplot2)
+# The R package ggplot2, created by Hadley Wickham, is an implementation of Leland Wilkinson's Grammar of Graphics, which is a systematic approach to describe the components of a graphic. In maintenance mode (i.e., no active development) since February 2014, ggplot2 it is the most downloaded R package of all time.
+ggplot(weather, aes(x=date, y=ave.temp)) +
+  geom_point(colour = "blue") +
+  geom_smooth(colour = "red", size = 1) +
+  ggtitle("Daily average temperature") +
+  xlab("Date") + ylab("Average Temperature")
+
+# Same but with colour varying
+
+ggplot(weather,aes(x = date,y = ave.temp)) + 
+  geom_point(aes(colour = ave.temp)) +
+  scale_colour_gradient2(low = "blue", mid = "green" , high = "red", midpoint = 16) + 
+  geom_smooth(color = "red",size = 1) +
+  scale_y_continuous(limits = c(5,30), breaks = seq(5,30,5)) +
+  ggtitle ("Daily average temperature") +
+  xlab("Date") +  ylab ("Average Temperature ( ºC )")
+
+# Distribution of the average temperature by season - density plot
+
+ggplot(weather,aes(x = ave.temp, colour = season)) +
+  geom_density() +
+  scale_x_continuous(limits = c(5,30), breaks = seq(5,30,5)) +
+  ggtitle ("Temperature distribution by season") +
+  xlab("Average temperature ( ºC )") +  ylab ("Probability")
+
+# Analysing the temperature by month - violin geom with jittered points overlaid
+
+# Label the months - Jan...Dec is better than 1...12
+weather$month = factor(weather$month,
+                       labels = c("Jan","Fev","Mar","Apr",
+                                  "May","Jun","Jul","Aug","Sep",
+                                  "Oct","Nov","Dec"))
+
+# Distribution of the average temperature by month - violin plot,
+# with a jittered point layer on top, and with size mapped to amount of rain
+
+ggplot(weather, aes(x = month, y = ave.temp)) +
+  geom_violin(fill = "orange") +
+  geom_point(aes(size=rain), colour = "blue", position = "jitter") +
+  ggtitle("Temperature distribution by month") +
+  xlab("Month") + ylab("Average temperature (C)")
+
+#Analysing  the correlation between low and high temperatures
+
+
+# Scatter plot of low vs high daily temperatures, with a smoother curve for each season
+
+ggplot(weather,aes(x = l.temp, y = h.temp)) +
+  geom_point(colour = "firebrick", alpha = 0.3) + 
+  geom_smooth(aes(colour = season),se= F, size = 1.1) +
+  ggtitle ("Daily low and high temperatures") +
+  xlab("Daily low temperature ( ºC )") +  ylab ("Daily high temperature ( ºC )") 
