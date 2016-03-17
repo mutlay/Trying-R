@@ -414,3 +414,61 @@ ggplot(weather,aes(x = l.temp, y = h.temp)) +
   geom_smooth(aes(colour = season),se= F, size = 1.1) +
   ggtitle ("Daily low and high temperatures") +
   xlab("Daily low temperature ( ºC )") +  ylab ("Daily high temperature ( ºC )") 
+
+#########################################################################################
+###############                         9                           #####################
+###############      Interpreting regression coefficient in R       #####################
+#########################################################################################
+
+# https://biologyforfun.wordpress.com/2014/11/23/interpreting-regression-coefficient-in-r/
+
+# let's simulate the data the explanatory variables: temperature (x1),
+# precipitation (x2) and the treatment (1=Control, 2= N addition)
+set.seed(1)
+x1 <- rnorm(100, 10, 2)
+x2 <- rnorm(100, 100, 10)
+x3 <- gl(n = 2, k = 50)
+modmat <- model.matrix(~x1 + x2 + x3, data = data.frame(x1, x2, x3))
+# vector of fixed effect
+betas <- c(10, 2, 0.2, 3)
+# generate data
+y <- rnorm(n = 100, mean = modmat %*% betas, sd = 1)
+# first model
+m <- lm(y ~ x1 + x2 + x3)
+summary(m)
+
+# Now let’s make a figure of the effect of temperature on soil biomass
+
+plot(y ~ x1, col = rep(c("red", "blue"), each = 50), pch = 16, xlab = "Temperature [°C]", ylab = "Soil biomass [mg]")
+abline(a = coef(m)[1], b = coef(m)[2], lty = 2, lwd = 2, col = "red")
+
+# What happened there? It seems as if our model is completely underestimating the y values … Well what we have been drawing is the estimated effect of temperature on soil biomass for the control group and for a precipitation of 0mm, this is not so interesting, instead we might be more interested to look at the effect for average precipitation values:
+
+plot(y ~ x1, col = rep(c("red", "blue"), each = 50), pch = 16, xlab = "Temperature [°C]", ylab = "Soil biomass [mg]")
+abline(a = coef(m)[1] + coef(m)[3] * mean(x2), b = coef(m)[2], lty=2, lwd = 2, col="red")
+abline(a = coef(m)[1] + coef(m)[4] + coef(m)[3] * mean(x2), b = coef(m)[2], lty = 2, lwd = 2, col = "blue")
+# averaging effect of the factor variable
+abline(a = coef(m)[1] + mean(c(0, coef(m)[4])) + coef(m)[3] * mean(x2), b = coef(m)[2], lty = 1, lwd = 2)
+legend("topleft", legend = c("Control", "N addition"), col = c("red", "blue"), pch = 16)
+
+# now center the continuous variable to change interpretation of the intercept
+
+data_center <- data.frame(x1 = x1 - mean(x1), x2 = x2 - mean(x2), x3 = x3)
+modmat <- model.matrix(~x1 + x2 + x3, data = data.frame(x1=x1, x2=x2, x3=x3))
+data_center$y_center <- rnorm(n = 100, mean = modmat %*% betas, sd = 1)
+
+# second model
+m_center <- lm(y_center ~ x1 + x2 + x3, data_center)
+summary(m_center)
+
+plot(y_center ~ x2, data_center, col = rep(c("red", "blue"), each = 50), pch = 16, 
+     xlab = "Precipitation [mm]", ylab = "Biomass [mg]")
+abline(a = coef(m_center)[1], b = coef(m_center)[3], lty = 2, lwd = 2, col = "red")
+abline(a = coef(m_center)[1] + coef(m_center)[4], b = coef(m_center)[3], lty = 2, 
+       lwd = 2, col = "blue")
+# averaging effect of the factor variable
+abline(a = coef(m_center)[1] + mean(c(0, coef(m_center)[4])), b = coef(m_center)[3], 
+       lty = 1, lwd = 2)
+legend("bottomright", legend = c("Control", "N addition"), col = c("red", "blue"), 
+       pch = 16)
+
