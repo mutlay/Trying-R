@@ -472,3 +472,133 @@ abline(a = coef(m_center)[1] + mean(c(0, coef(m_center)[4])), b = coef(m_center)
 legend("bottomright", legend = c("Control", "N addition"), col = c("red", "blue"), 
        pch = 16)
 
+#########################################################################################
+###############                         10                          #####################
+###############            Composite image with ggplot2             #####################
+#########################################################################################
+
+# http://blog.mckuhn.de/2015/03/creating-composite-figures-with-ggplot.html
+library(ggplot2)
+library(gtable)
+library(grid)
+
+# create example data
+set.seed(42)
+dataset_names <- c("Human", "Mouse", "Fly", "Worm")
+datasets <- data.frame(name = factor(dataset_names, levels = dataset_names), parity=factor(c(0,1,0,0)), v50 = runif(4, max=0.5), y=1:4)
+data <- data.frame(dataset1 = rep(datasets$name, 4), dataset2 = rep(datasets$name, each=4), z=runif(16, min = 0, max = 0.5))
+pal <- c("#dddddd", "#aaaaaa")
+
+## set up individual plots
+
+# heatmap
+new_theme_empty <- theme_bw()
+new_theme_empty$line <- element_blank()
+new_theme_empty$rect <- element_blank()
+new_theme_empty$strip.text <- element_blank()
+new_theme_empty$axis.text <- element_blank()
+new_theme_empty$plot.title <- element_blank()
+new_theme_empty$axis.title <- element_blank()
+new_theme_empty$legend.position <- "none"
+new_theme_empty$plot.margin <- structure(c(0, 0, 0, 0), unit = "lines", valid.unit = 3L, class = "unit")
+new_theme_empty$axis.ticks <- element_blank()
+new_theme_empty$axis.title.x <- element_blank()
+new_theme_empty$axis.title.y <- element_blank()
+
+p <- ggplot(data, aes(dataset1, dataset2, fill = z)) + geom_raster()
+p <- p + coord_fixed()
+p <- p + scale_fill_gradient2(midpoint = 0.5, mid="black", low = "#56B1F7", high="red", name="", breaks=c(0,0.25,0.5,0.75,1), limits=c(0,0.5))
+p <- p + scale_x_discrete(expand = c(0,0)) + scale_y_discrete(expand = c(0,0))
+plegend <- p + theme(legend.direction="horizontal")
+pmiddle <- p + new_theme_empty
+
+# top bar chart
+theme_partly_empty <- theme_bw()
+theme_partly_empty$rect <- element_blank()
+theme_partly_empty$strip.text <- element_blank()
+theme_partly_empty$axis.text.x <- element_blank()
+theme_partly_empty$plot.title <- element_blank()
+theme_partly_empty$legend.position <- "none"
+theme_partly_empty$plot.margin <- structure(c(0, 0, 0, 0), unit = "lines", valid.unit = 3L, class = "unit")
+theme_partly_empty$axis.ticks.x <- element_blank()
+theme_partly_empty$axis.title.x <- element_blank()
+theme_partly_empty$panel.grid.major.x <-element_blank()
+theme_partly_empty$panel.grid.minor <-element_blank()
+
+p <- ggplot( datasets, aes(name, v50, fill=parity)) + geom_bar(stat="identity")
+p <- p + theme_partly_empty
+p <- p + scale_fill_manual(values=pal)
+p <- p + scale_y_continuous(expand=c(0,0), breaks=0.1*1:5) + scale_x_discrete(expand=c(0,0))
+p <- p + ylab(expression(v[50]))
+ptop <- p
+
+# right bar chart
+theme_partly_empty <- theme_bw()
+theme_partly_empty$rect <- element_blank()
+theme_partly_empty$strip.text <- element_blank()
+theme_partly_empty$plot.title <- element_blank()
+theme_partly_empty$legend.position <- "none"
+theme_partly_empty$plot.margin <- structure(c(0, 0, 0, 0), unit = "lines", valid.unit = 3L, class = "unit")
+theme_partly_empty$axis.text.y <- element_blank()
+theme_partly_empty$axis.ticks.y <- element_blank()
+theme_partly_empty$axis.title.y <- element_blank()
+theme_partly_empty$panel.grid.major.y <-element_blank()
+theme_partly_empty$panel.grid.minor <-element_blank()
+
+p <- ggplot( datasets, aes(name, v50, fill=parity)) + geom_bar(stat="identity") + coord_flip()
+p <- p + theme_partly_empty
+p <- p + scale_fill_manual(values=pal)
+p <- p + scale_y_continuous(expand=c(0,0), breaks=0.1*1:5) + scale_x_discrete(expand=c(0,0))
+p <- p + ylab(expression(v[50]))
+pright <- p
+
+# left strip of labels
+p <- ggplot( datasets, aes(xmin=0, xmax=1, ymin=y, ymax=y+1, fill=parity)) + geom_rect()
+p <- p + new_theme_empty
+p <- p + scale_fill_manual(values=pal)
+p <- p + geom_text(aes(x=1, y=y+0.5, label=paste0(name, " ")), hjust=1, vjust=0.5)
+p <- p + scale_y_discrete(expand = c(0,0)) + scale_x_continuous(expand=c(0,0))
+pleft <- p
+
+# bottom strip of labels
+p <- ggplot( datasets, aes(xmin=y, xmax=y+1, ymin=0, ymax=1, fill=parity)) + geom_rect()
+p <- p + new_theme_empty
+p <- p + scale_fill_manual(values=pal)
+p <- p + geom_text(aes(y=1, x=y+0.5, label=paste0(name, " ")), hjust=1, vjust=0.5, angle=90)
+p <- p + scale_x_discrete(expand = c(0,0)) + scale_y_continuous(expand = c(0,0))
+pbottom <- p
+
+## create the layout, centered around the heatmap
+g <- gtable_filter(ggplotGrob(pmiddle), pattern = "panel", trim = TRUE, fixed=TRUE)
+g <- gtable_add_rows(g, unit(0.2, "null"), 0) # left labels
+g <- gtable_add_rows(g, unit(0.2, "null"), 2) # right bar chart
+g <- gtable_add_rows(g, unit(0.05, "null"), 2) # space for axis label 1/2
+g <- gtable_add_rows(g, unit(0.05, "null"), 2) # space for axis label 2/2
+g <- gtable_add_cols(g, unit(0.05, "null"), 0) # space for axis label 1/2
+g <- gtable_add_cols(g, unit(0.05, "null"), 0) # space for axis label 2/2
+g <- gtable_add_cols(g, unit(0.2, "null"), 0) # top bar chart
+g <- gtable_add_cols(g, unit(0.2, "null"), 4) # bottom labels
+
+# gtable_show_layout(g)
+
+g <- gtable_add_grob(g, gtable_filter(ggplotGrob(ptop), pattern = "ylab", trim = TRUE, fixed=TRUE), 1, 2)
+g <- gtable_add_grob(g, gtable_filter(ggplotGrob(ptop), pattern = "axis-l", trim = TRUE, fixed=TRUE), 1, 3)
+g <- gtable_add_grob(g, gtable_filter(ggplotGrob(ptop), pattern = "panel", trim = TRUE, fixed=TRUE), 1, 4)
+
+g <- gtable_add_grob(g, gtable_filter(ggplotGrob(pleft), pattern = "panel", trim = TRUE, fixed=TRUE), 2, 1, 2, 3)
+g <- gtable_add_grob(g, gtable_filter(ggplotGrob(pbottom), pattern = "panel", trim = TRUE, fixed=TRUE), 3, 4, 5)
+
+g <- gtable_add_grob(g, gtable_filter(ggplotGrob(pright), pattern = "panel", trim = TRUE, fixed=TRUE), 2, 5)
+g <- gtable_add_grob(g, gtable_filter(ggplotGrob(pright), pattern = "axis-b", trim = TRUE, fixed=TRUE), 3, 5)
+g <- gtable_add_grob(g, gtable_filter(ggplotGrob(pright), pattern = "xlab", trim = TRUE, fixed=TRUE), 4, 5)
+
+g <- gtable_add_grob(g, gtable_filter(ggplotGrob(plegend), pattern = "guide-box", trim = TRUE, fixed=TRUE), 5, 1, 5, 3)
+g <- gtable_add_grob(g, textGrob("\nMedian expression\ndistance of\n1:1 orthologs\n\n\n\n", gp = gpar(fontsize = 12)), 3, 1, 5, 3)
+
+
+grid.newpage()
+grid.draw(g)
+
+png(paste0("test.png"), width = 10, height = 10, units = "in", res=300)
+grid.draw(g)
+dev.off()
