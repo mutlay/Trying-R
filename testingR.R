@@ -918,3 +918,49 @@ fit <- kmeans(ds, centers = nClust)
 ds <- cbind(ds, cluster = as.factor(fit$cluster))
 # Call function and print to internal viewer.
 VoronoiPlotly(fit, ds, n.sd.x = 3, n.sd.y = 3, print.ggplot = F)
+
+
+#########################################################################################
+###############                         12                          #####################
+###############           My Commonly Done ggplot2 graphs           #####################
+#########################################################################################
+
+# https://hopstat.wordpress.com/2014/12/18/my-commonly-done-ggplot2-graphs-part-2/
+
+library(ggplot2)
+
+# Data preparation
+set.seed(20141106)
+data = data.frame(x = rnorm(1000, mean = 6), batch = factor(rbinom(1000, size = 4, prob = 0.5)))
+data$group1 = 1- rbeta(1000, 10, 2)
+mat = model.matrix(~ batch, data=data)
+mat = mat[, !colnames(mat) %in% "(Intercept)"]
+betas = rbinom(ncol(mat), size = 20, prob = 0.5)
+data$quality = rowSums(t(t(mat) * sample(-2:2)))
+data$dec.quality = cut(data$quality, breaks = unique(quantile(data$quality, probs = seq(0, 1, by=0.1))), include.lowest = TRUE)
+batch.effect = t(t(mat) * betas)
+batch.effect = rowSums(batch.effect)
+data$y = data$x * 5 + rnorm(1000) + batch.effect + data$quality * rnorm(1000, sd = 2)
+data$group2 = runif(1000)
+
+# I have added 2 important new variables, quality and batch. The motivation for these variables is akin to an RNAseq analysis set where you have a quality measure like read depth, and where the data were processed in different batches. The y variable is based both on the batch effect and the quality.
+
+g = ggplot(data, aes(x = x, y = y)) + geom_point()
+print(g)
+
+# Coloring by a 3rd Variable (Discrete)
+print({g + aes(colour=batch)})
+
+# Coloring by a 3rd Variable (Continuous)
+print({gcol = g + aes(colour=quality)})
+# Let's change the gradient of low to high values using scale_colour_gradient:
+print({gcol + scale_colour_gradient(low = "red", high = "blue")})
+# This isn't much better. Let's call the middle quality gray and see if we can see better separation:
+print({gcol_grad = gcol + scale_colour_gradient2(low = "red", mid = "gray", high = "blue")})
+
+# Scatterplot with Coloring by a 3rd Variable (Continuous broken into Discrete)
+print({gcol_dec = g + aes(colour = dec.quality)})
+
+# Scatterplot with Coloring by 3rd Continuous Variable Faceted by a 4th Discrete Variable
+print({gcol_grad + facet_wrap(~ batch)})
+
