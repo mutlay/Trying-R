@@ -1016,3 +1016,95 @@ ggplot(data, aes(x=Female, y=Male, size=log(Pop), label=Country), guide=FALSE)+
   geom_text(data=subset(data, abs(Female-Male)>7), size=5.5, colour="gray25", hjust=0, vjust=0)+
   geom_text(data=subset(data, Female>=32|Female<=18), size=5.5, colour="gray25", hjust=0, vjust=0)+
   geom_text(aes(24, 17), colour="gray25", hjust=0, label="Source: United Nations (size of bubble depending on population)", size=5)+opts
+
+
+
+#########################################################################################
+###############                         14                          #####################
+###############      Exploratory data analysis with ggplot2         #####################
+#########################################################################################
+
+# http://theanalyticalminds.blogspot.com.tr/2015/03/part-3a-plotting-with-ggplot2.html
+# http://theanalyticalminds.blogspot.com.tr/2015/03/part-3b-eda-with-ggplot2.html
+# DATA PREPARATION
+weather <- read.csv("weather_2014.csv",sep=";",stringsAsFactors=FALSE)
+weather$season <- factor(weather$season, levels = c("Spring","Summer","Autumn","Winter"))
+weather$day <- as.factor(weather$day)
+weather$month <- as.factor(weather$month)
+weather$dir.wind <- as.factor(weather$dir.wind)
+rel <- round(prop.table(table(weather$dir.wind))*100,1)
+sort(rel,decreasing = TRUE)
+# Transforming wind direction variable: from 16 to 8 principal winds 
+
+# Create a copy from the original variable...
+weather$dir.wind.8 <- weather$dir.wind 
+
+# ...and then simply recode some of the variables
+weather$dir.wind.8 <- ifelse(weather$dir.wind %in%  c("NNE","ENE"),
+                             "NE",as.character(weather$dir.wind.8)) 
+
+weather$dir.wind.8 <- ifelse(weather$dir.wind %in% c("NNW","WNW"),
+                             "NW",as.character(weather$dir.wind.8)) 
+
+weather$dir.wind.8 <- ifelse(weather$dir.wind %in% c("WSW","SSW"),
+                             "SW",as.character(weather$dir.wind.8)) 
+
+weather$dir.wind.8 <- ifelse(weather$dir.wind %in% c("ESE","SSE"),
+                             "SE",as.character(weather$dir.wind.8)) 
+
+# create factors, ordered by "levels" 
+weather$dir.wind.8 <- factor(weather$dir.wind.8,
+                             levels = c("N","NE","E","SE","S","SW","W","NW"))
+round(prop.table(table(weather$dir.wind.8,weather$season),margin = 2)*100,1)
+first.day <- "2014-01-01"
+first.day <- as.Date(first.day)
+weather$date  <- first.day + weather$day.count - 1
+# Store date and time as POSIXlt class
+l.temp.time.date <- as.POSIXlt(paste(weather$date,weather$l.temp.time))
+# Round to the nearest hour
+l.temp.time.date <- round(l.temp.time.date,"hours")
+weather$l.temp.hour <- l.temp.time.date [["hour"]]
+# Lastly, the integer is converted to factor
+weather$l.temp.hour <- as.factor(weather$l.temp.hour)
+
+# EXPLORATORY DATA ANALYSIS
+library(ggplot2)
+# Exploring the dependent variable - daily rain amount
+# Time series of the daily rain amount, with smoother curve
+ggplot(weather, aes(date, rain)) +
+  geom_point(aes(colour = rain)) +
+  geom_smooth(colour = "blue", size = 1) +
+  scale_colour_gradient2(low = "green", mid = "orange", high = "red", midpoint = 20) +
+  scale_y_continuous(breaks = seq(0,80,20)) +
+  xlab("Date") +
+  ylab("Rain (mm)") +
+  ggtitle("Daily rain amount")
+
+# Histogram of the daily rain amount
+ggplot(weather, aes(rain)) + 
+  geom_histogram(binwidth = 1, colour = "blue", fill = "darkgrey") +
+  scale_x_continuous(breaks = seq(0, 80, 5)) +
+  scale_y_continuous(breaks = seq(0,225,25)) +
+  xlab("Rain (mm)") +
+  ylab("Frequency (days)") +
+  ggtitle("Daily rain amount distribution")
+
+# Rain amount (continuous) by season
+# Jitter plot - Rain amount by season 
+
+ggplot(weather, aes(season, rain)) +
+  geom_jitter(aes(colour=rain), position = position_jitter(width = 0.2)) +
+  scale_colour_gradient2(low = "blue", mid = "red", high = "black", midpoint = 30) +
+  scale_y_continuous(breaks = seq(0,80,20)) +
+  xlab("Season") +
+  ylab("Rain (mm)") +
+  ggtitle("Daily rain amount by season")
+
+# Amount of rain vs. wind, by season
+ggplot(weather, aes(gust.wind, rain)) +
+  geom_point(colour = "firebrick") +
+  geom_smooth(size = 0.75, se = FALSE) +
+  facet_wrap(~season) +
+  xlab("Maximum wind speed (km/h)") +
+  ylab("Rain (mm)") +
+  ggtitle("Amount of rain vs. maximum wind speed, by season")
