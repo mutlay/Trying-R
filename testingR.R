@@ -1219,3 +1219,21 @@ p <- p +
         axis.title = element_blank())
 
 print(p)
+
+
+
+#########################################################################################
+###############                         16                          #####################
+###############     R: single plot with two different y-axes        #####################
+#########################################################################################
+
+# http://www.gettinggeneticsdone.com/2015/04/r-single-plot-with-two-different-y-axes.html
+set.seed(2015-04-13)
+d = data.frame(x = seq(1,10), n = c(0,0,1,2,3,4,4,5,6,6), logp=signif(-log10(runif(10)), 2))
+par(mar = c(5,5,2,5))
+with(d, plot(x, logp, type="l", col="red3"), ylab=expression(-log[10](italic(p))), ylim=c(0,3))
+par(new = T)
+with(d, plot(x, n, pch =16, axes = FALSE, xlab = NA, ylab = NA, cex=1.2))
+axis(side = 4)
+mtext(side = 4, line = 3, "Number genes selected")
+legend("topleft", legend = c(expression(-log[10](italic(p))), "N genes"), lty=c(1,0), pch=c(NA, 16), col=c("red3", "black"))
