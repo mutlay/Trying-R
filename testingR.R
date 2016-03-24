@@ -1108,3 +1108,114 @@ ggplot(weather, aes(gust.wind, rain)) +
   xlab("Maximum wind speed (km/h)") +
   ylab("Rain (mm)") +
   ggtitle("Amount of rain vs. maximum wind speed, by season")
+
+
+
+#########################################################################################
+###############                         15                          #####################
+###############          Stacked multiple plot with ggplot2         #####################
+#########################################################################################
+
+# http://alexwhan.com/2016-03-24-joy-division-plot
+# https://github.com/alexwhan/alexwhan.github.io/blob/master/_source/2016-03-24-joy-division-plot.Rmd
+# http://stackoverflow.com/questions/33619980/spread-out-density-plots-with-ggplot/33620860#33620860
+library(ggplot2)
+library(dplyr)
+library(broom)
+
+# PLOT - 1
+
+rawdata <- data.frame(Score = rnorm(1000, seq(1, 0, length.out = 10), sd = 1),
+                      Group = rep(LETTERS[1:10], 10000))
+
+df <- rawdata %>% 
+  mutate(GroupNum = rev(as.numeric(Group))) %>% #rev() means the ordering will be from top to bottom
+  group_by(Group, GroupNum) %>% 
+  do(tidy(density(.$Score, bw = diff(range(.$Score))/20))) %>% #The original has quite a large bandwidth
+  group_by() %>% 
+  mutate(ymin = GroupNum * (max(y) / 1.5), #This constant controls how much overlap between groups there is
+         ymax = y + ymin,
+         ylabel = ymin + min(ymin)/2,
+         xlabel = min(x) - mean(range(x))/2) #This constant controls how far to the left the labels are
+
+#Get quartiles
+labels <- rawdata %>% 
+  mutate(GroupNum = rev(as.numeric(Group))) %>% 
+  group_by(Group, GroupNum) %>% 
+  mutate(q1 = quantile(Score)[2],
+         median = quantile(Score)[3],
+         q3 = quantile(Score)[4]) %>%
+  filter(row_number() == 1) %>% 
+  select(-Score) %>% 
+  left_join(df) %>% 
+  mutate(xmed = x[which.min(abs(x - median))],
+         yminmed = ymin[which.min(abs(x - median))],
+         ymaxmed = ymax[which.min(abs(x - median))]) %>% 
+  filter(row_number() == 1)
+
+p <- ggplot(df, aes(x, ymin = ymin, ymax = ymax)) + geom_text(data = labels, aes(xlabel, ylabel, label = Group)) +
+  geom_vline(xintercept = 0, size = 1.5, alpha = 0.5, colour = "#626262") + 
+  geom_vline(xintercept = c(-2.5, -1.25, 1.25, 2.5), size = 0.75, alpha = 0.25, colour = "#626262") + 
+  theme(panel.grid = element_blank(),
+        panel.background = element_rect(fill = "#F0F0F0"),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank())
+for (i in unique(df$GroupNum)) {
+  p <- p + geom_ribbon(data = df[df$GroupNum == i,], aes(group = GroupNum), colour = "#F0F0F0", fill = "black") +
+    geom_segment(data = labels[labels$GroupNum == i,], aes(x = xmed, xend = xmed, y = yminmed, yend = ymaxmed), colour = "#F0F0F0", linetype = "dashed") +
+    geom_segment(data = labels[labels$GroupNum == i,], x = min(df$x), xend = max(df$x), aes(y = ymin, yend = ymin), size = 1.5, lineend = "round") 
+}
+p <- p + geom_text(data = labels[labels$Group == "A",], aes(xmed - xlabel/50, ylabel), 
+                   label = "Median", colour = "#F0F0F0", hjust = 0, fontface = "italic", size = 4)
+print(p)
+
+# PLOT - 2
+
+set.seed(1234)
+
+j1 <- data.frame(Group = 1:50, 
+                 n1 = sample(c(500, 1000, 2500, 5000), 50, TRUE, c(0.1, 0.2, 0.4, 0.3)),
+                 n2 = sample(c(200, 400, 500, 1000), 50, TRUE, prob = c(0.3, 0.5, 0.15, 0.05)),
+                 m1 = runif(50, -1, 1),
+                 m2 = rnorm(50, 5, 0.5),
+                 sd1 = sample(c(0.7, 1.5, 2.5), 50, TRUE, prob = c(0.15, 0.5, 0.35)),
+                 sd2 = sample(c(0.7, 1, 3.5), 50, TRUE, prob = c(0.05, 0.6, 0.35)))
+j2 <- j1 %>% 
+  group_by(Group) %>% 
+  do(x = c(rnorm(.$n1, .$m1, .$sd1), rnorm(.$n2, .$m2, .$sd2))) %>% 
+  tidy(x)
+
+j3 <- j2 %>% 
+  mutate(GroupNum = rev(as.numeric(Group))) %>% 
+  group_by(Group, GroupNum) %>% 
+  do(tidy(density(.$x, n = 100))) %>% 
+  group_by() %>% 
+  mutate(ymin = GroupNum * (max(y) / 10), #This constant controls how much overlap between groups there is
+         ymax = y + ymin)
+
+j4 <- j3 %>% 
+  group_by(Group, GroupNum) %>% 
+  do(data.frame(approx(.$x, .$ymax, xout = seq(min(j3$x), max(j3$x), length.out = 250)))) %>% 
+  mutate(y = ifelse(is.na(y), j3$ymin[j3$Group == Group][1], y),
+         ymin = j3$ymin[j3$Group == Group][1],
+         ymaxN = y + rnorm(n(), 0.001, 0.005)) %>% 
+  arrange(x) %>% 
+  mutate(ymaxN = ifelse(row_number() %in% c(1, n()), ymin + min(ymaxN - ymin), ymaxN))
+
+j4$ymaxS <- smooth(j4$ymaxN, kind = "S", endrule = "copy", do.ends = FALSE)
+
+p <- ggplot()
+for (i in rev(unique(j4$GroupNum))) {
+  p <- p + geom_ribbon(data = j4[j4$GroupNum == i,], aes(x = x, ymin = ymin + min(j4$ymaxN - j4$ymin), ymax = ymaxS, group = GroupNum), colour = "#F0F0F0", fill = "black") +
+    geom_hline(yintercept = j4$ymin[j4$GroupNum == i][1] + min(j4$ymaxN - j4$ymin), colour = "#000000")
+}
+p <- p + 
+  coord_fixed(13) +
+  theme(panel.grid = element_blank(),
+        panel.background = element_rect(fill = "#000000"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank())
+
+print(p)
