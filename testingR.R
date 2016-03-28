@@ -1306,3 +1306,73 @@ sdm.sim <- function(n, src.dist=NULL, param1=NULL, param2=NULL) {
 sdm.sim(50, src.dist = "E", param1 = 1)
 
 
+
+#########################################################################################
+###############                         19                          #####################
+###############   Orthogonal Nonlinear Least-Squares Regression     #####################
+#########################################################################################
+
+# https://rmazing.wordpress.com/2015/01/18/introducing-orthogonal-nonlinear-least-squares-regression-in-r/
+# With this post I want to introduce my newly bred ‘onls’ package which conducts Orthogonal Nonlinear Least-Squares Regression (ONLS): http://cran.r-project.org/web/packages/onls/index.html. Orthogonal nonlinear least squares (ONLS) is a not so frequently applied and maybe overlooked regression technique that comes into question when one encounters an “error in variables” problem. While classical nonlinear least squares (NLS) aims to minimize the sum of squared vertical residuals, ONLS minimizes the sum of squared orthogonal residuals. The method is based on finding points on the fitted line that are orthogonal to the data by minimizing for each (x_i, y_i) the Euclidean distance \|D_i\| to some point (x_{0i}, y_{0i}) on the fitted curve.
+# I will work through one example here, the famous DNase 1 dataset of the nls documentation, with 10% added error. The semantics are exactly as in nls, albeit with a (somewhat) different output:
+library(onls)
+DNase1 <- subset(DNase, Run == 1)
+DNase1$density <- sapply(DNase1$density, function(x) rnorm(1, x, 0.1 * x))
+mod1 <- onls(density ~ Asym / (1 + exp((xmid - log(conc))/scal)), data = DNase1, start = list(Asym = 3, xmid = 0, scal = 1))
+
+# The print.onls method gives, as in nls, the parameter values and the vertical residual sum-of-squares. However, the orthogonal residual sum-of-squares is also returned and MOST IMPORTANTLY, information on how many points (x_{0i}, y_{0i}) are actually orthogonal to (x_i, y_i) after fitting:
+print(mod1)
+# When plotting an ONLS model with the plot.onls function, it is important to know that orthogonality is only evident with equal scaling of both axes:
+plot(mod1, xlim = c(0, 0.5), ylim = c(0, 0.5))
+
+
+
+#########################################################################################
+###############                         20                          #####################
+###############         Confidence vs. Credibility Intervals        #####################
+#########################################################################################
+
+# https://freakonometrics.hypotheses.org/18117
+# http://www.statsblogs.com/2014/11/26/confidence-vs-credibility-intervals/
+#  - For frequentists, a probability is a measure of the the frequency of repeated events, so the interpretation is that parameters are fixed (but unknown), and data are random
+#  - For Bayesians, a probability is a measure of the degree of certainty about values, so the interpretation is that parameters are random and data are fixed
+# Or to quote Frequentism and Bayesianism: A Python-driven Primer,  a Bayesian statistician would say “given our observed data, there is a 95% probability that the true value of http://latex.codecogs.com/gif.latex?\theta falls within the credible region” while a Frequentist statistician would say “there is a 95% probability that when I compute a confidence interval from data of this sort, the true value of http://latex.codecogs.com/gif.latex?\theta will fall within it”.
+# To get more intuition about those quotes, consider a simple problem, with Bernoulli trials, with insurance claims. We want to derive some confidence interval for the probability to claim a loss. There were http://latex.codecogs.com/gif.latex?n = 1047 policies. And 159 claims.
+xbar <- 159
+n <- 1047
+ns <- 100
+M = matrix(rbinom(n*ns, size = 1, prob = xbar/n), nrow = n)
+# I generate 100 samples of size http://latex.codecogs.com/gif.latex?n. For each sample, I compute the mean, and the confidence interval, from the previous relationship
+fIC = function(x) mean(x) + c(-1,1)*1.96*sqrt(mean(x)*(1-mean(x)))/sqrt(n)
+IC = t(apply(M, 2, fIC))
+MN = apply(M, 2, mean)
+# Then we plot all those confidence intervals. In red when they do not contain the empirical mean
+k=(xbar/n<IC[,1])|(xbar/n>IC[,2])
+plot(MN, 1:ns, xlim = range(IC), axes = FALSE, xlab = "", ylab = "", pch=19, cex=.7, col = c("blue", "red")[1+k])
+axis(1)
+segments(IC[,1], 1:ns, IC[,2],1:ns, col = c("blue", "red")[1+k])
+abline(v=xbar/n)
+
+# Now, what about the Bayesian credible interval ? Assume that the prior distribution for the probability to claim a loss has a http://latex.codecogs.com/gif.latex?\mathcal{B}(\alpha,\beta) distribution. We’ve seen in the course that, since the Beta distribution is the conjugate of the Bernoulli one, the posterior distribution will also be Beta. 
+
+u = seq(.1, .2, length=501)
+v = dbeta(u, 1+xbar, 1+n-xbar)
+plot(u, v, axes = FALSE, type = "l")
+I=u<qbeta(.025,1+xbar,1+n-xbar)
+polygon(c(u[I], rev(u[I])), c(v[I], rep(0, sum(I))), col = "red", density = 30, border = NA)
+I = u>qbeta(.975, 1+xbar, 1+n-xbar)
+polygon(c(u[I], rev(u[I])), c(v[I], rep(0, sum(I))), col = "red", density = 30, border = NA)
+axis(1)
+
+pk <- rbeta(ns, 1+xbar, 1+n-xbar)
+hist(pk, prob=TRUE, col = "light green", border = "white", axes = FALSE, main = "", xlab = "", ylab = "", lwd=3, xlim = c(.12, .18))
+M = matrix(rbinom(n*ns, size = 1, prob = rep(pk, each=n)), nrow = n)
+MN = apply(M, 2, mean)
+
+# Here, there is 95% chance that those empirical means lie in the credible interval, defined using quantiles of the posterior distribution. We can actually visualize all those means : in black the mean used to generate the sample, and then, in blue or red, the averages obtained on those simulated samples,
+
+abline(v=qbeta(c(.025, .975), 1+xbar, 1+n-xbar), col="red", lty=2)
+points(pk, seq(1, 40, length = ns), pch=19, cex=.7)
+k = (MN>qbeta(.025, 1+xbar, 1+n-xbar))|(MN>qbeta(.975,1+xbar, 1+n-xbar))
+points(MN, seq(1, 40, length = ns), pch=19, cex=.7, col=c("blue", "red")[1+k])
+segments(MN, seq(1, 40, length = ns), pk, seq(1, 40, length = ns), col="grey")
