@@ -1268,3 +1268,41 @@ for (i in c(1,0.8,0.5,0.2,0,-0.2,-0.5,-0.8,-1)) {
 library(ggplot2)
 g=ggplot(df, aes(x=x, y=y)) + geom_point(size=1)
 g+facet_wrap(~corr) + stat_smooth(method = "lm", se=FALSE, color="red")
+
+
+
+#########################################################################################
+###############                         18                          #####################
+###############  Sampling Distributions and Central Limit Theorem   #####################
+#########################################################################################
+
+# https://qualityandinnovation.com/2015/03/30/sampling-distributions-and-central-limit-theorem-in-r/
+# Following code allows you to choose a sample size (n), a source distribution, and parameters for that source distribution, and generate a plot of the sampling distributions of the mean, sum, and variance. (Note: the sampling distribution for the variance is a Chi-square distribution — if your source distribution is normal!):
+sdm.sim <- function(n, src.dist=NULL, param1=NULL, param2=NULL) {
+  r <- 1000 # Number of replications/samples - DO NOT ADJUST
+  # This produces a matrix of observations with
+  # n columns and r rows. Each row is one sample:
+  my.samples <- switch (src.dist,
+    "E" = matrix(rexp(n*r, param1),r),
+    "N" = matrix(rnorm(n*r, param1, param2), r),
+    "U" = matrix(runif(n*r, param1, param2), r),
+    "p" = matrix(rpois(n*r, param1), r),
+    "B" = matrix(rbinom(n*r, param1, param2), r),
+    "G" = matrix(rgamma(n*r, param1, param2), r),
+    "X" = matrix(rchisq(n*r, param1), r),
+    "T" = matrix(tr(n*r, param1), r))
+  all.samples.sums <- apply(my.samples, 1, sum)
+  all.samples.means <- apply(my.samples, 1, mean)
+  all.sample.vars <- apply(my.samples, 1, var)
+  par(mfrow = c(2,2))
+  hist(my.samples[1,], col = "gray", main="Distribution of One Sample")
+  hist(all.samples.sums, col = "gray", main = "Sampling Distribution\nof the Sum")
+  hist(all.samples.means, col = "gray", main = "Sampling Distribution\nof the Mean")
+  hist(all.sample.vars, col = "gray", main = "Sampling Distribution\nof the Variance")
+}
+# There are 8 population distributions to choose from: exponential (E), normal (N), uniform (U), Poisson (P), binomial (B), gamma (G), Chi-Square (X), and the Student’s t distribution (T). Note also that you have to provide either one or two parameters, depending upon what distribution you are selecting.
+
+# Here is an example that draws from an exponential distribution with a mean of 1/1 (you specify the number you want in the denominator of the mean):
+sdm.sim(50, src.dist = "E", param1 = 1)
+
+
