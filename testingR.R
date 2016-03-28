@@ -1237,3 +1237,34 @@ with(d, plot(x, n, pch =16, axes = FALSE, xlab = NA, ylab = NA, cex=1.2))
 axis(side = 4)
 mtext(side = 4, line = 3, "Number genes selected")
 legend("topleft", legend = c(expression(-log[10](italic(p))), "N genes"), lty=c(1,0), pch=c(NA, 16), col=c("red3", "black"))
+
+
+
+#########################################################################################
+###############                         17                          #####################
+############### Scatterplots for Different Correlation Coefficients #####################
+#########################################################################################
+
+# http://blog.ouseful.info/2014/12/17/sketching-scatterplots-to-demonstrate-different-correlations/
+
+# A set of scatterplots that illustrate different correlation coefficients between X and Y values
+
+library(MASS)
+
+corrdata = function(samples=200, r=0){
+  data = mvrnorm(n=samples, mu=c(0,0), Sigma = matrix(c(1, r, r, 1), nrow = 2), empirical = TRUE)
+  X = data[, 1] # standard normal (mu=0, sd=1)
+  Y = data[, 2] # standard normal (mu=0, sd=1)
+  data.frame(x=X, y=Y)
+}
+
+df=data.frame()
+for (i in c(1,0.8,0.5,0.2,0,-0.2,-0.5,-0.8,-1)) {
+  tmp=corrdata(200,i)
+  tmp["corr"]=i
+  df=rbind(df,tmp)
+}
+
+library(ggplot2)
+g=ggplot(df, aes(x=x, y=y)) + geom_point(size=1)
+g+facet_wrap(~corr) + stat_smooth(method = "lm", se=FALSE, color="red")
