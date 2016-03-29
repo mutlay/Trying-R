@@ -1376,3 +1376,84 @@ points(pk, seq(1, 40, length = ns), pch=19, cex=.7)
 k = (MN>qbeta(.025, 1+xbar, 1+n-xbar))|(MN>qbeta(.975,1+xbar, 1+n-xbar))
 points(MN, seq(1, 40, length = ns), pch=19, cex=.7, col=c("blue", "red")[1+k])
 segments(MN, seq(1, 40, length = ns), pk, seq(1, 40, length = ns), col="grey")
+
+
+
+#########################################################################################
+###############                         21                          #####################
+###############              Data point locator function            #####################
+#########################################################################################
+
+# http://menugget.blogspot.com.tr/2014/12/point-locator-function.html
+# Here's a little function to select data points in an open graphical device (ptlocator()). The function does a scaling of the x and y axes in order to give them equal weighting and remove the influence of differing units or ranges. The function then calculates the Euclidean distance between the selected locations (using the locator() function) and the x, y coordinates of the plotted data points. Colored points are filled in for the data point that has the lowest distance to the clicked location, and the results give the vector positions of the closest x, y data points.
+ptlocator <- function(n=1, x, y, col=rgb(1, 0, 0, 0.5), pch=20, ...) {
+  xsc <- scale(x)
+  ysc <- scale(y)
+  pos <- seq(n)*NaN
+  for (i in seq(n)) {
+    print(paste("choose point", i))
+    pt <- locator(1)
+    ptxsc <- scale(pt$x, center = attr(xsc, "scaled:center"), scale = attr(xsc,"scaled:scale"))
+    ptysc <- scale(pt$y, center = attr(ysc, "scaled:center"), scale = attr(ysc,"scaled:scale"))
+    pos.i <- which.min(sqrt((c(ptxsc)-c(xsc))^2 + (c(ptysc)-c(ysc))^2))
+    points(x[pos.i], y[pos.i], col=col, pch=pch, ...)
+    pos[i] <- pos.i
+  }
+  pos
+}
+
+# Testing:
+set.seed(1)
+n <- 200
+x <- sort(runif(n, min = 0, max = 10*pi))
+y <- sin(x) + rnorm(n, sd=0.2)
+
+# Select 10 points at maxima and minima
+op <- par(mar=c(4, 4, 1, 1))
+plot(x,y, cex=2)
+pos <- ptlocator(10, x, y, col = rgb(1, 0.2, 0.2, 0.75), cex=2)
+par(op)
+pos
+
+
+#########################################################################################
+###############                         22                          #####################
+###############        Combining lattice charts into one            #####################
+#########################################################################################
+
+# http://www.r-bloggers.com/combining-several-lattice-charts-into-one/
+# http://www.magesblog.com/2015/04/combining-several-lattice-charts-into.html
+
+#  The latticeExtra package provides another elegant solution for trellis (lattice) plots: the function c.trellis() or just c() combines the panels of multiple trellis objects into one. 
+
+library(latticeExtra)
+## Combine different types of plots
+c(wireframe(volcano), contourplot(volcano))
+
+# In my next example I am using data from Eurostat, the statistical office of the European Union, showing the use of public transport in four countries.
+id <- "tsdtr210"
+library(eurostat)
+dat <- get_eurostat(id, time_format = "num")
+dat1 <- label_eurostat(dat)
+dat_trans <- subset(dat1, geo %in% c("Austria", "Belgium", "Finland", "Sweden") & time %in% 2000:2012)
+levels(dat_trans$vehicle) <- c("Busses", "Cars", "Trains")
+# Helpers function for plots
+pltTransport <- function(trans="Busses") {
+  library(latticeExtra)
+  my.settings <- canonical.theme(color = FALSE)
+  my.settings[["strip.background"]]$col <- "black"
+  my.settings[["strip.border"]]$col <- "black"
+  xyplot(values ~ time | factor(geo),
+         data = subset(dat_trans, vehicle %in% trans),
+         ylab = "%", xlab = "Year",
+         main = "Uses of public transport",
+         par.settings = my.settings,
+         par.strip.text=list(col="white", font=2),
+         scales = list(alternating=1),
+         layout=c(4,1), t="b", as.table=TRUE)
+}
+# Plot charts for busses and trains
+(pltBusses <- pltTransport(trans = "Busses"))
+(pltTrains <- pltTransport(trans = "Trains"))
+# Combine lattice charts into one
+c(Busses=pltBusses, Trains=pltTrains, y.same=TRUE, layout=c(4,2))
