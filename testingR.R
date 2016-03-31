@@ -1585,3 +1585,170 @@ gg
 library(DiagrammeR)
 grViz("boxes.dot")
 
+
+
+#########################################################################################
+###############                         25                          #####################
+###############         Factor analysis results with ggplot         #####################
+#########################################################################################
+
+# http://mindingthebrain.blogspot.com.tr/2015/04/plotting-factor-analysis-results.html
+# http://rpubs.com/danmirman/plotting_factor_analysis
+
+load(url("http://dmirman.github.io/FAex.Rdata"))
+# First, let’s make a nice graph of how the measures load on each of the factors. We’ll want them more or less grouped by factor, but the best option I could come up with was to manually order them:
+Ord <- c(17, 16, 13, 15, 12,  2, 3,  5,  9,  8, 11,  7, 14,  6,  4,  10,  1)
+loadings$Test <- reorder(loadings$Test, Ord)
+
+# The factors are in separate columns, so we need to melt the data into a “long” form for plotting (you’ll need to have loaded the reshape2 package):
+library(reshape2)
+loadings.m <- melt(loadings, id="Test", 
+                   measure=c("Semantic Recognition", "Speech Production", 
+                             "Speech Recognition", "Semantic Errors"), 
+                   variable.name="Factor", value.name="Loading")
+# Now make the bar graph (which became Figure 1 in our first paper on these data). Explanations of each bit of the ggplot code are inserted as comments:
+# For each test, plot the loading as length and fill color of a bar
+# Note that the length will be the absolute value of the loading but the fill color will be the signed value, more on this below
+library(ggplot2)
+ggplot(loadings.m, aes(Test, abs(Loading), fill=Loading)) + 
+  facet_wrap(~ Factor, nrow=1) + #place the factors in separate facets
+  geom_bar(stat="identity") + #make the bars
+  coord_flip() + #flip the axes so the test names can be horizontal  
+  #define the fill color gradient: blue=positive, red=negative
+  scale_fill_gradient2(name = "Loading", 
+                       high = "blue", mid = "white", low = "red", 
+                       midpoint=0, guide=F) +
+  ylab("Loading Strength") + #improve y-axis label
+  theme_bw(base_size=10) #use a black-and0white theme with set font size
+
+# Plot the correlations matrix:
+
+# Correlations needs to be melted into a long form so that each test pair and their correlation is a single row in the data frame:
+corrs.m <- melt(corrs, id="Test", variable.name = "Test2", value.name = "Correlation")
+corrs.m$Test2 <- reorder(corrs.m$Test2, rep(Ord, each=17))
+library(grid) # for adjusting plot margins
+# Place the tests on the x- and y-axes,
+# fill the elements with the strength of the correlation
+ggplot(corrs.m, aes(Test2, Test, fill=abs(Correlation))) + 
+  geom_tile() + #rectangles for each correlation
+  #add actual correlation value in the rectangle
+  geom_text(aes(label = round(Correlation, 2)), size=2.5) + 
+  theme_bw(base_size=10) + #black and white theme with set font size
+  #rotate x-axis labels so they don't overlap, 
+  #get rid of unnecessary axis titles
+  #adjust plot margins
+  theme(axis.text.x = element_text(angle = 90), 
+        axis.title.x=element_blank(), 
+        axis.title.y=element_blank(), 
+        plot.margin = unit(c(3, 1, 0, 0), "mm")) +
+  #set correlation fill gradient
+  scale_fill_gradient(low="white", high="red") + 
+  guides(fill=F) #omit unnecessary gradient legend
+# Now here is the fun part: can we add a stacked bar graph of factor loadings so that we can see how the factor analysis transformed these pairwise correlations into factors? First, we need to make that stacked bar graph. The code will be very similar to the bar graph in the previous section, but we’ll use fill color of the stacked bars to distinguish the factors instead of putting them in separate facets. We’ll also assign the ggplot object to a variable for making the combo graph:
+p1 <- last_plot() # store the correlation matrix plot object for later
+p2 <- ggplot(loadings.m, aes(Test, abs(Loading), fill=Factor)) +
+  geom_bar(stat = "identity") + coord_flip() +
+  ylab("Loading strength") + theme_bw(base_size = 10) +
+  # remove labels and tweak margins for combining with the correlation matrix
+  theme(axis.text.y = element_blank(), axis.title.y = element_blank(), plot.margin = unit(c(3, 1, 39, -3), "mm"))
+p2
+# Now we can use the grid.arrange() function from the gridExtra package to put both plots in one figure. The function takes the plot objects (p1 and p2) and various optional arrangment parameters. In this case, we’ll tell it to put the plots side-by-side in two columns (ncol=2) and that the left column (which will contain the big correlation matrix) should be twice as wide as the right column (widths=c(2, 1)):
+library(gridExtra)
+grid.arrange(p1, p2, ncol = 2, widths = c(2,1))
+
+
+
+#########################################################################################
+###############                         26                          #####################
+###############             Piecewise temporal heatmap              #####################
+#########################################################################################
+
+# https://nsaunders.wordpress.com/2015/04/15/project-tycho-ggplot2-and-the-shameless-stealing-of-blog-ideas/
+# https://rpubs.com/neilfws/79677
+# http://www.r-bloggers.com/project-tycho-ggplot2-and-the-shameless-stealing-of-blog-ideas/
+# http://www.opiniomics.org/recreating-a-famous-visualisation/
+
+# using R to recreate the visualizations in this WSJ article on the impact of vaccination (http://graphics.wsj.com/infectious-diseases-and-vaccines/).
+
+# Getting disease data:
+
+# Go to Project Tycho, register, log in, choose level 2 data, click “search and retrieve data”, choose state rather than city, add all of the states to the selection box, click graph & table and Submit query.  There is then an option to download in Excel.  The Excel is actually CSV and we can import this into R quite easily. 
+
+
+library(plyr)
+library(reshape2)
+library(ggplot2)
+
+readDiseaseData <- function(csv) {
+  dis <- read.csv(csv, skip = 2, header = TRUE, stringsAsFactors = FALSE)
+  dis[, 3:62] <- sapply(dis[, 3:62], as.numeric)  
+  dis.m   <- melt(dis[, c(1, 3:61)], variable.name = "state", id.vars = "YEAR")
+  dis.agg <- aggregate(value ~ state + YEAR, dis.m, sum)
+  return(dis.agg)
+}
+
+polio <- readDiseaseData("sources/POLIOMYELITIS_Cases_1921-1971_20160331172148.csv")
+
+# Getting the population data
+
+# I discovered US state population estimates for the years 1900 – 1990 at the US Census Bureau. The URLs are HTTPS, but omitting the “s” works fine. The data are plain text…which is good but…although the data are somewhat structured (delimited), the files themselves vary a lot. Some contain only estimates, others contain in addition census counts. For earlier decades the numbers are thousands with a comma (so “1,200” = 1 200 000). Later files use millions with no comma. The decade years are split over several lines with different numbers of lines before and inbetween. To make a long story short, any function to read these files requires many parameters to take all this into account and it looks like this:
+getPopData <- function(years = "0009", skip1 = 23, skip2 = 81, rows = 49, names = 1900:1909, keep = 1:11) {
+  u  <- paste("http://www.census.gov/popest/data/state/asrh/1980s/tables/st", years, "ts.txt", sep = "")
+  p1 <- read.table(u, skip = skip1, nrows = rows, header = F, stringsAsFactors = FALSE)
+  p2 <- read.table(u, skip = skip2, nrows = rows, header = F, stringsAsFactors = FALSE)
+  p12 <- join(p1, p2, by = "V1")
+  p12 <- p12[, keep]
+  colnames(p12) <- c("state", names)
+  # 1900-1970 are in thousands with commas
+  if(as.numeric(substring(years, 1, 1)) < 7) {
+    p12[, 2:11] <- sapply(p12[, 2:11], function(x) gsub(",", "", x))
+    p12[, 2:11] <- sapply(p12[, 2:11], as.numeric)
+    p12[, 2:11] <- sapply(p12[, 2:11], function(x) 1000*x)
+  }
+  return(p12)
+}
+
+# So now we can create a list of data frames, one per decade, then use plyr::join_all to join on state and get a big data frame of 51 states x 91 years with population estimates.
+
+popn <- list(p1900 = getPopData(),
+             p1910 = getPopData(years = "1019", names = 1910:1919),
+             p1920 = getPopData(years = "2029", names = 1920:1929),
+             p1930 = getPopData(years = "3039", names = 1930:1939),
+             p1940 = getPopData(years = "4049", skip1 = 21, skip2 = 79, names = 1940:1949),
+             p1950 = getPopData(years = "5060", skip1 = 27, skip2 = 92, rows = 51, names = 1950:1959, keep = c(1, 3:7, 9:13)),
+             p1960 = getPopData(years = "6070", skip1 = 24, skip2 = 86, rows = 51, names = 1960:1969, keep = c(1, 3:7, 9:13)),
+             p1970 = getPopData(years = "7080", skip1 = 14, skip2 = 67, rows = 51, names = 1970:1979, keep = c(2:8, 11:14)),
+             p1980 = getPopData(years = "8090", skip1 = 11, skip2 = 70, rows = 51, names = 1980:1990, keep = 1:12))
+
+popn.df <- join_all(popn, by = "state", type = "full")
+
+# Joining the datasets
+
+# Next step: join the disease and population data. Although we specified states in the original data download, it includes things that are not states like “UPSTATE.NEW.YORK”, “DISTRICT.OF.COLUMBIA” or “PUERTO.RICO”. So let’s restrict ourselves to the 50 states helpfully supplied as variables in R. First we create a data frame containing state names and abbreviations, then match the abbreviations to the polio data.
+
+statenames <- toupper(state.name)
+statenames <- gsub(" ", ".", statenames)
+states <- data.frame(sname = statenames, sabb = state.abb)
+
+m <- match(polio$state, states$sname)
+polio$abb <- states[m, "sabb"]
+
+# Now we can melt the population data:
+
+popn.m <- melt(popn.df)
+colnames(popn.m) <- c("abb", "YEAR", "pop")
+popn.m$YEAR <- as.numeric(as.character(popn.m$YEAR))
+polio.pop <- join(polio, popn.m, by = c("YEAR", "abb"))
+polio.pop$cases <- (100000 / polio.pop$pop) * polio.pop$value
+
+# PLOTTING
+
+ggplot(na.omit(polio.pop)) + geom_dotplot(aes(x = factor(YEAR), fill = cases), color = "white", binwidth = 1, dotsize = 0.4, binpositions = "all", method = "histodot") + facet_grid(abb~.) + theme_bw() + scale_fill_continuous(low = "floralwhite", high = "red") + geom_vline(xintercept = 32) + scale_y_discrete(breaks = NULL) + theme(panel.border = element_blank(), strip.text.y = element_text(angle = 0), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + scale_x_discrete(breaks = seq(min(polio.pop$YEAR), max(polio.pop$YEAR), 5)) + labs(x = "Year", y = "cases / 100000", title = "Poliomyelitis 1921 - 1971")
+
+# For a shape more like the WSJ plots, I use geom_rect. This plot is generated quite a lot faster.
+ggplot(na.omit(polio.pop)) + geom_rect(aes(xmin = YEAR, xmax = YEAR+1, ymin = 0, ymax = 12, fill = cases)) + facet_grid(abb~.) + theme_bw() + scale_y_discrete(breaks = NULL) + scale_fill_continuous(low = "floralwhite", high = "red") + theme(panel.border = element_blank(), panel.margin = unit(1, "mm"), strip.text.y = element_text(angle = 0), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + geom_vline(xintercept = 1955) + scale_x_continuous(breaks = seq(min(polio.pop$YEAR), max(polio.pop$YEAR), 5)) + labs(x = "Year", y = "cases / 100000", title = "Poliomyelitis 1921 - 1971")
+
+# And finally with a different color palette:
+cols <- c(colorRampPalette(c("white", "cornflowerblue"))(10), colorRampPalette(c("yellow", "red"))(30))
+
+ggplot(na.omit(polio.pop)) + geom_rect(aes(xmin = YEAR, xmax = YEAR+1, ymin = 0, ymax = 12, fill = cases), color = "white") + facet_grid(abb~.) + theme_bw() +scale_y_discrete(breaks = NULL) + scale_fill_gradientn(colours = cols) + theme(panel.border = element_blank(), panel.margin = unit(1, "mm"), strip.text.y = element_text(angle = 0), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + geom_vline(xintercept = 1955) + scale_x_continuous(breaks = seq(min(polio.pop$YEAR), max(polio.pop$YEAR), 5)) + labs(x = "Year", y = "cases / 100000", title = "Poliomyelitis 1921 - 1971")
