@@ -1842,3 +1842,63 @@ ggplot(mdf, aes(y=state, x=year, fill=c)) +
            size=I(3), family="Helvetica")
 
 
+
+#########################################################################################
+###############                         28                          #####################
+###############       Multiple trends theme_fivethirtyeight         #####################
+#########################################################################################
+
+# http://blog.yhat.com/posts/replicating-five-thirty-eight-in-r.html
+# https://github.com/glamp/mlb-payroll-and-wins
+
+library(plyr)
+library(ggplot2)
+library(ggthemes)
+df <- read.csv("sources/mlb-standings-and-payroll.csv", stringsAsFactors = FALSE)
+df <- df[,c("tm", "year", "w", "wins_losses", "est_payroll")]
+df <- df[df$year >= 1985,]
+
+# Lookaup metadata for each team
+team.lookups <- read.csv("sources/team-lookups.csv")
+df <- merge(df, team.lookups, by.x = "tm", by.y = "historic_team", stringsAsFactors=FALSE)
+
+# Lookup colors
+team.colors <- read.csv("sources/team-colors.csv", stringsAsFactors = FALSE)
+df <- merge(df, team.colors, by.x = "modern_team", by.y = "tm")
+
+yearly_payroll <- ddply(df, .(year), function(x) {
+  data.frame(
+    mean_payroll = mean(x$est_payroll, na.rm = TRUE),
+    std_payroll = sd(x$est_payroll, na.rm = TRUE)
+  )
+})
+
+df <- merge(df, yearly_payroll, by="year")
+
+# calculate number of standard deviations from mean
+df$standardized_payroll <- (df$est_payroll - df$mean_payroll) / df$std_payroll
+
+divisions <- c("AL East", "AL Central", "AL West", "NL East", "NL Central", "NL West")
+
+# PLOT
+for (div in divisions) {
+  df.division <- subset(df, division==div)
+  div.title <- sub("AL", "American League", div)
+  div.title <- sub("NL", "National League", div.title)
+  p <- ggplot(df.division, aes(x=standardized_payroll, y=wins_losses, color=team_color)) + 
+    geom_point(alpha=0.75, size=3) + 
+    stat_smooth(data=within(df, modern_team <- NULL), color="grey", size=.5,
+                method="lm", formula = y ~ poly(x, 2), se=FALSE) +
+    stat_smooth(size=1.5, method="lm", formula = y ~ poly(x, 2), se=FALSE) +
+    scale_color_identity() +
+    scale_x_continuous(name="Standardized Salary\n(# of standard deviations from yearly mean)",
+                       breaks=c(-2, 0, 2), limit=c(-2.5, 2.5), labels=c("-2", "0", "+2")) +
+    scale_y_continuous(name="Win/Loss %", breaks=seq(0.3, 0.7, 0.1), limit=c(0.25, 0.75)) +
+    facet_wrap(~modern_team, ncol=5, scales="free_x") +
+    theme_fivethirtyeight() +
+    ggtitle(div.title)
+  ggsave(filename=paste0(div, ".png"), plot=p, width=13.65, height=3.59)
+}
+
+
+
