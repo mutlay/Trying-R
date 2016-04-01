@@ -1902,3 +1902,33 @@ for (div in divisions) {
 
 
 
+#########################################################################################
+###############                         29                          #####################
+###############         Mathematical notations in R plots           #####################
+#########################################################################################
+
+# http://www.magesblog.com/2015/07/adding-mathematical-notations-to-r-plots.html
+# http://www.r-bloggers.com/adding-mathematical-notations-to-r-plots/
+
+library(latex2exp)
+
+x <- seq(-4, 4, len=101)
+y <- cbind(sin(x), cos(x))
+
+op = par(mfrow=c(2,1))
+
+# plotmath
+matplot(x, y, type = "l", xaxt = "n", main = expression(paste("plotmath: ", plain(sin) * phi, " and ", plain(cos) * phi)) , ylab = expression("sin" * phi, "cos" * phi), xlab = expression(paste("Phase angle ", phi)), col.main="blue")
+axis(1, at = c(-pi, -pi/2, 0, pi/2, pi), labels = expression(-pi, -pi/2, 0, pi/2, pi))
+
+# latex2exp 
+matplot(x, y, type = "l", xaxt = "n", 
+        main = TeX("TeX (latex2exp): $\\sin \\phi$ and $\\cos \\phi$"),
+        ylab = TeX("$\\sin \\phi$ and $\\cos \\phi$"),
+        xlab = TeX("Phase Angle $\\phi$"),
+        col.main = "blue")
+axis(1, at = c(-pi, -pi/2, 0, pi/2, pi),
+     labels = sapply(c("$-\\pi$", "$-\\pi/2$", 
+                       "0", "$\\pi/2$", "$\\pi$"),
+                     latex2exp))
+par(op)
