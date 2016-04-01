@@ -1752,3 +1752,93 @@ ggplot(na.omit(polio.pop)) + geom_rect(aes(xmin = YEAR, xmax = YEAR+1, ymin = 0,
 cols <- c(colorRampPalette(c("white", "cornflowerblue"))(10), colorRampPalette(c("yellow", "red"))(30))
 
 ggplot(na.omit(polio.pop)) + geom_rect(aes(xmin = YEAR, xmax = YEAR+1, ymin = 0, ymax = 12, fill = cases), color = "white") + facet_grid(abb~.) + theme_bw() +scale_y_discrete(breaks = NULL) + scale_fill_gradientn(colours = cols) + theme(panel.border = element_blank(), panel.margin = unit(1, "mm"), strip.text.y = element_text(angle = 0), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + geom_vline(xintercept = 1955) + scale_x_continuous(breaks = seq(min(polio.pop$YEAR), max(polio.pop$YEAR), 5)) + labs(x = "Year", y = "cases / 100000", title = "Poliomyelitis 1921 - 1971")
+
+
+
+#########################################################################################
+###############                         27                          #####################
+###############         Recreating the vaccination heatmaps         #####################
+#########################################################################################
+
+# https://benjaminlmoore.wordpress.com/2015/04/09/recreating-the-vaccination-heatmaps-in-r/
+# https://github.com/blmoore/blogR/blob/master/R/measles_incidence_heatmap.R
+# http://www.r-bloggers.com/recreating-the-vaccination-heatmaps-in-r/
+# # http://www.opiniomics.org/recreating-a-famous-visualisation/
+
+# In February the WSJ graphics team put together a series of interactive visualisations on the impact of vaccination that blew up on twitter and facebook, and were roundly lauded as great-looking and effective dataviz.
+
+# How hard would it be to recreate an R version?
+
+# The Data
+# Thankfully the hard work of tracking down the data had already been done for me, to get at it follow these steps:
+# 1- Register and login to “Project Tycho“
+# 2- Go to level 1 data, then Search and retrieve data
+# 3- Now change a couple of options: geographic level := state; disease outcome := incidence, Disease := Measles
+# 4- Add all states (highlight all at once with Ctrl+A (or Cmd+A on Macs)
+# 5- Opt for Table & Graph, Hit submit and scroll down to Click here to download results to excel
+# 6- Open in excel and export to CSV
+
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+
+measles <- read.csv("sources/MEASLES_Incidence_1928-2003_20160401090827.csv", header = TRUE, skip = 2, stringsAsFactors = FALSE)
+
+# Now all that’s left to do is a bit of tidying. The data comes in wide format, so can be melted to our ggplot2-friendly long format with:
+measles[measles=="-"] <- NA
+measles[, -(1:2)] <- apply(measles[,-(1:2)], 2, as.numeric)
+measles <- melt(measles, id.var = c("YEAR", "WEEK"))
+colnames(measles) <- c("year", "week", "state", "cases")
+
+# aggregate to yearly totals
+mdf <- measles %>% group_by(state, year) %>% 
+  summarise(c=if(all(is.na(cases))) NA else
+    sum(cases, na.rm=T))
+mdf$state <- factor(mdf$state, levels=rev(levels(mdf$state)))
+
+# edited from R-manual: converts AnyTHInG to Title Case
+.simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1, 1)), tolower(substring(s, 2)),
+        sep = "", collapse = " ")
+}
+
+levels(mdf$state) <- sapply(as.character(levels(mdf$state)), function(i) .simpleCap(gsub("\\.", " ", i)))
+
+# hack together a colorbar
+cols <- c(colorRampPalette(c("#e7f0fa", "#c9e2f6", "#95cbee", "#0099dc",
+                             "#4ab04a", "#ffd73e"))(10),
+          colorRampPalette(c("#eec73a", "#e29421",
+                             "#e29421", "#f05336","#ce472e"),
+                           bias=2)(90))
+
+ggplot(mdf, aes(y=state, x=year, fill=c)) + 
+  geom_tile(colour="white", width=.9, height=.9) + theme_minimal() +
+  scale_fill_gradientn(colours=cols, limits=c(0, 4000),
+                       breaks=seq(0, 4e3, by=1e3), 
+                       na.value=rgb(246, 246, 246, max=255),
+                       labels=c("0k", "1k", "2k", "3k", "4k"),
+                       guide=guide_colourbar(ticks=T, nbin=50,
+                                             barheight=.5, label=T,
+                                             barwidth=10)) +
+  scale_x_continuous(expand=c(0,0), breaks=seq(1930, 2010, by=10)) +
+  geom_segment(x=1963, xend=1963, y=0, yend=51.5, size=.5, lineend = "round") +
+  labs(x="", y="", fill="") +
+  ggtitle("Measles") +
+  theme(legend.position=c(.5, -.13),
+        legend.direction="horizontal",
+        legend.text=element_text(colour="grey20"),
+        plot.margin=grid::unit(c(.5,.5,1.5,.5), "cm"),
+        axis.text.y=element_text(size=6, family="Helvetica", hjust=1),
+        axis.text.x=element_text(size=8),
+        axis.line.x=element_line(colour="grey20", size=.5),
+        axis.ticks.y=element_blank(),
+        axis.ticks.x=element_line(colour="grey20"),
+        axis.ticks.length=grid::unit(.1, "cm"),
+        panel.grid=element_blank(),
+        title=element_text(hjust=-.07, face="bold", vjust=1, family="Helvetica"),
+        text=element_text(family="URWHelvetica")) +
+  annotate("text", label="Vaccine introduced", x=1963, y=53, vjust=1, hjust=0,
+           size=I(3), family="Helvetica")
+
+
